@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Disaster Relief Supply Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     HEADER
+═══════════════════════════════════════════ -->
+<header class="site-header">
+  <div class="header-inner">
+    <div class="header-left">
+      <span class="header-icon">🛡</span>
+      <div>
+        <h1 class="site-title">Disaster Relief Supply Dashboard</h1>
+        <p class="site-subtitle">Real-time logistics monitoring · Maharashtra Region</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="live-badge"><span class="pulse-dot"></span> LIVE</span>
+    </div>
+  </div>
+</header>
+
+
+<!-- ═══════════════════════════════════════════
+     SUMMARY CARDS
+═══════════════════════════════════════════ -->
+<section class="section">
+  <div class="cards-grid">
+
+    <div class="card card--neutral">
+      <div class="card-icon">🏙</div>
+      <div class="card-value">{{ stats.total_cities }}</div>
+      <div class="card-label">Total Cities</div>
+    </div>
+
+    <div class="card card--critical">
+      <div class="card-icon">🚨</div>
+      <div class="card-value">{{ stats.critical_cities }}</div>
+      <div class="card-label">Critical Cities</div>
+    </div>
+
+    <div class="card card--warning">
+      <div class="card-icon">⚠️</div>
+      <div class="card-value">{{ stats.warning_cities }}</div>
+      <div class="card-label">Warning Cities</div>
+    </div>
+
+    <div class="card card--safe">
+      <div class="card-icon">✅</div>
+      <div class="card-value">{{ stats.safe_cities }}</div>
+      <div class="card-label">Safe Cities</div>
+    </div>
+
+    <div class="card card--neutral">
+      <div class="card-icon">📦</div>
+      <div class="card-value">{{ stats.total_stock }}</div>
+      <div class="card-label">Total Stock</div>
+    </div>
+
+    <div class="card card--neutral">
+      <div class="card-icon">📊</div>
+      <div class="card-value">{{ stats.coverage_pct }}%</div>
+      <div class="card-label">Stock Coverage</div>
+    </div>
+
+    <div class="card card--neutral">
+      <div class="card-icon">🔻</div>
+      <div class="card-value">{{ stats.total_shortage }}</div>
+      <div class="card-label">Total Shortage</div>
+    </div>
+
+    <div class="card {% if stats.critical_cities > 0 %}card--critical{% else %}card--safe{% endif %}">
+      <div class="card-icon">📍</div>
+      <div class="card-value" style="font-size:1.1rem">{{ stats.worst_city }}</div>
+      <div class="card-label">Most Critical · {{ stats.lowest_days }}d left</div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     ACTIVE ALERTS
+═══════════════════════════════════════════ -->
+<section class="section">
+  <h2 class="section-title">⚠ Active Supply Alerts</h2>
+
+  {% if alerts %}
+  <div class="alerts-grid">
+    {% for a in alerts %}
+    <div class="alert-card alert-card--{{ a.status | lower }}">
+      <div class="alert-top">
+        <span class="alert-city">{{ a.city }}</span>
+        <span class="badge badge--{{ a.status | lower }}">{{ a.status }}</span>
+      </div>
+      <div class="alert-meta">
+        <span>🕒 {{ a.days_remaining }}d remaining</span>
+        <span>📦 {{ a.supply_type }}</span>
+        <span>⬇ {{ a.shortage }} needed</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="safe-banner">✅ All cities have sufficient supply</div>
+  {% endif %}
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     SUPPLY TYPE SUMMARY
+═══════════════════════════════════════════ -->
+<section class="section">
+  <h2 class="section-title">📋 Supply Type Overview</h2>
+  <div class="supply-summary-grid">
+    {% for s in supply_summary %}
+    <div class="supply-type-card">
+      <div class="supply-type-name">{{ s.supply_type }}</div>
+      <div class="supply-type-stats">
+        <div><span class="st-label">Cities</span><span class="st-val">{{ s.city_count }}</span></div>
+        <div><span class="st-label">Stock</span><span class="st-val">{{ s.total_stock }}</span></div>
+        <div><span class="st-label">Required</span><span class="st-val">{{ s.total_required }}</span></div>
+      </div>
+      <div class="supply-bar-wrap">
+        {% set pct = [(s.total_stock / s.total_required * 100) | round(0) | int, 100] | min %}
+        <div class="supply-bar" style="width: {{ pct }}%"></div>
+      </div>
+      <div class="supply-pct">{{ pct }}% covered</div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     ADD NEW DATA
+═══════════════════════════════════════════ -->
+<section class="section">
+  <h2 class="section-title">➕ Add New Supply Record</h2>
+  <form method="POST" action="/add" class="add-form">
+    <div class="form-grid">
+      <input type="text"   name="city"             placeholder="City Name"         required>
+      <select name="supply_type" required>
+        <option value="" disabled selected>Supply Type</option>
+        <option value="Food">Food</option>
+        <option value="Water">Water</option>
+        <option value="Medicine">Medicine</option>
+      </select>
+      <select name="month" required>
+        <option value="" disabled selected>Month</option>
+        {% for m in ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] %}
+        <option value="{{ m }}">{{ m }}</option>
+        {% endfor %}
+      </select>
+      <input type="number" name="allocated"         placeholder="Allocated"         required min="0">
+      <input type="number" name="current_stock"     placeholder="Current Stock"     required min="0">
+      <input type="number" name="consumption_rate"  placeholder="Consumption Rate"  required min="1">
+      <input type="number" name="required_stock"    placeholder="Required Stock"    required min="0">
+    </div>
+    <button type="submit" class="btn btn--primary">Add Record</button>
+  </form>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     FILTER CONTROLS
+═══════════════════════════════════════════ -->
+<section class="section">
+  <h2 class="section-title">🔎 Filter & Search</h2>
+  <form method="GET" class="filter-form">
+    <input type="text"   name="search_city"   placeholder="Search city..."
+           value="{{ search_city or '' }}">
+
+    <select name="supply_filter">
+      <option value="">All Supplies</option>
+      <option value="Food"     {% if supply_filter == "Food"     %}selected{% endif %}>Food</option>
+      <option value="Water"    {% if supply_filter == "Water"    %}selected{% endif %}>Water</option>
+      <option value="Medicine" {% if supply_filter == "Medicine" %}selected{% endif %}>Medicine</option>
+    </select>
+
+    <label class="checkbox-label">
+      <input type="checkbox" name="critical_only" {% if critical_only %}checked{% endif %}>
+      Critical Only
+    </label>
+
+    <select name="sort_option">
+      <option value="">No Sorting</option>
+      <option value="days_remaining" {% if sort_option == "days_remaining" %}selected{% endif %}>Days Remaining ↑</option>
+      <option value="priority"       {% if sort_option == "priority"       %}selected{% endif %}>Priority Score ↓</option>
+      <option value="shortage"       {% if sort_option == "shortage"       %}selected{% endif %}>Shortage ↓</option>
+      <option value="city"           {% if sort_option == "city"           %}selected{% endif %}>City A–Z</option>
+    </select>
+
+    <button type="submit" class="btn btn--primary">Apply</button>
+    <a href="/" class="btn btn--secondary">Reset</a>
+  </form>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     DATA TABLE
+═══════════════════════════════════════════ -->
+<section class="section">
+  <h2 class="section-title">📊 Supply Data Table
+    <span class="row-count">({{ data | length }} records)</span>
+  </h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>City</th>
+          <th>Supply</th>
+          <th>Month</th>
+          <th>Allocated</th>
+          <th>Current</th>
+          <th>Consumption/day</th>
+          <th>Days Left</th>
+          <th>Priority Score</th>
+          <th>Status</th>
+          <th>Shortage</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in data %}
+        <tr class="row--{{ row.status | lower }}">
+          <td class="mono">{{ loop.index }}</td>
+          <td><strong>{{ row.city }}</strong></td>
+          <td>{{ row.supply_type }}</td>
+          <td>{{ row.month }}</td>
+          <td class="mono">{{ row.allocated }}</td>
+          <td class="mono">{{ row.current_stock }}</td>
+          <td class="mono">{{ row.consumption_rate }}</td>
+          <td class="mono {% if row.days_remaining < 2 %}text-critical{% elif row.days_remaining <= 3 %}text-warning{% endif %}">
+            {{ row.days_remaining }}
+          </td>
+          <td class="mono">{{ row.priority_score }}</td>
+          <td><span class="badge badge--{{ row.status | lower }}">{{ row.status }}</span></td>
+          <td class="mono {% if row.shortage > 0 %}text-warning{% endif %}">{{ row.shortage }}</td>
+          <td>
+            <form method="POST" action="/delete/{{ row.city }}" style="display:inline"
+                  onsubmit="return confirm('Delete {{ row.city }}?')">
+              <button type="submit" class="btn-delete" title="Delete">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     CHARTS
+═══════════════════════════════════════════ -->
+<section class="section">
+  <h2 class="section-title">📈 Supply Charts</h2>
+  <div class="charts-grid">
+
+    <div class="chart-card chart-card--wide">
+      <h3 class="chart-title">Current Stock by City (status-colored)</h3>
+      <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <h3 class="chart-title">Stock Distribution</h3>
+      <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <h3 class="chart-title">Days Remaining per City</h3>
+      <div class="chart-wrap"><canvas id="daysChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <h3 class="chart-title">Consumption Rate per City</h3>
+      <div class="chart-wrap"><canvas id="lineChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <h3 class="chart-title">Shortage Needed per City</h3>
+      <div class="chart-wrap"><canvas id="shortageChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <h3 class="chart-title">Supply Type Breakdown</h3>
+      <div class="chart-wrap"><canvas id="supplyTypeChart"></canvas></div>
+    </div>
+
+    <div class="chart-card chart-card--wide">
+      <h3 class="chart-title">City Monthly Trend</h3>
+      <select id="citySelector" class="chart-select">
+        {% for city in cities %}
+        <option value="{{ city }}">{{ city }}</option>
+        {% endfor %}
+      </select>
+      <div class="chart-wrap"><canvas id="monthlyChart"></canvas></div>
+    </div>
+
+    <div class="chart-card chart-card--wide">
+      <h3 class="chart-title">Monthly Allocation Trend</h3>
+      <div class="chart-wrap"><canvas id="allocationChart"></canvas></div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════
+     CHART SCRIPTS
+═══════════════════════════════════════════ -->
+<script>
+const CITIES     = {{ cities | tojson }};
+const STOCKS     = {{ stocks | tojson }};
+const CONSUMP    = {{ consumption_rates | tojson }};
+const DAYS       = {{ days_remaining | tojson }};
+const SHORTAGE   = {{ shortage | tojson }};
+const BAR_COLORS = {{ bar_colors | tojson }};
+const MONTHS     = {{ months | tojson }};
+const MVALUES    = {{ monthly_values | tojson }};
+const CITY_MONTH = {{ city_month_data | tojson }};
+const S_LABELS   = {{ supply_labels | tojson }};
+const S_VALUES   = {{ supply_values | tojson }};
+
+Chart.defaults.color = "#94a3b8";
+Chart.defaults.font.family = "'Space Mono', monospace";
+Chart.defaults.font.size   = 11;
+
+const GRID = { color: "rgba(148,163,184,0.1)" };
+const defaultScales = {
+  x: { grid: GRID, ticks: { maxRotation: 45 } },
+  y: { grid: GRID, beginAtZero: true }
+};
+
+/* ── BAR: Current Stock (status colors) ── */
+new Chart(document.getElementById("barChart"), {
+  type: "bar",
+  data: {
+    labels: CITIES,
+    datasets: [{ label: "Current Stock", data: STOCKS,
+      backgroundColor: BAR_COLORS, borderRadius: 4 }]
+  },
+  options: { responsive:true, maintainAspectRatio:false,
+    scales: defaultScales,
+    plugins: { legend: { display:false } } }
+});
+
+/* ── PIE: Stock Distribution ── */
+new Chart(document.getElementById("pieChart"), {
+  type: "doughnut",
+  data: {
+    labels: CITIES,
+    datasets: [{ data: STOCKS,
+      backgroundColor: CITIES.map((_,i)=>`hsl(${i*18},60%,55%)`),
+      borderWidth: 1, borderColor: "#1e293b" }]
+  },
+  options: { responsive:true, maintainAspectRatio:false,
+    plugins: { legend: { position:"right", labels:{ boxWidth:10 } } } }
+});
+
+/* ── HORIZONTAL BAR: Days Remaining ── */
+new Chart(document.getElementById("daysChart"), {
+  type: "bar",
+  data: {
+    labels: CITIES,
+    datasets: [{ label: "Days Remaining", data: DAYS,
+      backgroundColor: DAYS.map(d =>
+        d < 2 ? "rgba(239,68,68,0.85)" :
+        d <= 3 ? "rgba(251,146,60,0.85)" :
+                 "rgba(34,197,94,0.85)"),
+      borderRadius: 4 }]
+  },
+  options: { indexAxis:"y", responsive:true, maintainAspectRatio:false,
+    scales: { x: { grid:GRID, beginAtZero:true }, y: { grid:GRID } },
+    plugins: { legend:{display:false},
+      annotation: { annotations: {
+        line1: { type:"line", xMin:3, xMax:3,
+          borderColor:"rgba(251,146,60,0.6)", borderWidth:2,
+          label:{ content:"3-day threshold", display:true } }
+      }}
+    }
+  }
+});
+
+/* ── LINE: Consumption Rate ── */
+new Chart(document.getElementById("lineChart"), {
+  type: "line",
+  data: {
+    labels: CITIES,
+    datasets: [{ label: "Consumption Rate", data: CONSUMP,
+      borderColor: "#38bdf8", backgroundColor: "rgba(56,189,248,0.1)",
+      fill:true, tension:0.4, pointRadius:4,
+      pointBackgroundColor:"#38bdf8" }]
+  },
+  options: { responsive:true, maintainAspectRatio:false, scales: defaultScales }
+});
+
+/* ── BAR: Shortage ── */
+new Chart(document.getElementById("shortageChart"), {
+  type: "bar",
+  data: {
+    labels: CITIES,
+    datasets: [{ label: "Shortage", data: SHORTAGE,
+      backgroundColor: "rgba(239,68,68,0.7)", borderRadius:4 }]
+  },
+  options: { responsive:true, maintainAspectRatio:false,
+    scales: defaultScales,
+    plugins: { legend:{display:false} } }
+});
+
+/* ── PIE: Supply Type ── */
+new Chart(document.getElementById("supplyTypeChart"), {
+  type: "pie",
+  data: {
+    labels: S_LABELS,
+    datasets: [{ data: S_VALUES,
+      backgroundColor: ["#38bdf8","#34d399","#fb923c"],
+      borderWidth:2, borderColor:"#1e293b" }]
+  },
+  options: { responsive:true, maintainAspectRatio:false,
+    plugins: { legend:{ position:"bottom" } } }
+});
+
+/* ── LINE: City Monthly Trend ── */
+let monthlyChart = new Chart(document.getElementById("monthlyChart"), {
+  type: "line",
+  data: {
+    labels: MONTHS,
+    datasets: [{
+      label: "City Monthly Stock",
+      data: CITY_MONTH[Object.keys(CITY_MONTH)[0]] || [],
+      borderColor: "#a78bfa",
+      backgroundColor: "rgba(167,139,250,0.15)",
+      fill:true, tension:0.4, pointRadius:4
+    }]
+  },
+  options: { responsive:true, maintainAspectRatio:false, scales: defaultScales }
+});
+
+document.getElementById("citySelector").addEventListener("change", function() {
+  monthlyChart.data.datasets[0].data = CITY_MONTH[this.value] || [];
+  monthlyChart.data.datasets[0].label = this.value + " Monthly Stock";
+  monthlyChart.update();
+});
+
+/* ── BAR: Monthly Allocation ── */
+new Chart(document.getElementById("allocationChart"), {
+  type: "bar",
+  data: {
+    labels: MONTHS,
+    datasets: [{ label: "Monthly Allocation", data: MVALUES,
+      backgroundColor: "rgba(56,189,248,0.7)", borderRadius:4 }]
+  },
+  options: { responsive:true, maintainAspectRatio:false, scales: defaultScales }
+});
+</script>
+
+</body>
+</html>
